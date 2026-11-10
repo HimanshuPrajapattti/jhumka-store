@@ -2,16 +2,19 @@
 
 import { redirect } from "next/navigation";
 import { refresh, updateTag } from "next/cache";
-import { getDb, ORDER_STATUSES, type OrderStatus } from "@/lib/db";
+import { ORDER_STATUSES, type OrderStatus } from "@/lib/order-statuses";
 import {
   DEFAULT_SITE_APPEARANCE,
   readSiteAppearance,
   type SiteAppearance,
 } from "@/lib/appearance";
+import type { AppearanceImage } from "@/lib/appearance-defaults";
+import { getInsforgeAdmin, throwInsforgeError } from "@/lib/insforge-admin";
+import { parseProductImages, type ProductImageAsset } from "@/lib/product-images";
 import {
-  APPEARANCE_IMAGE_TYPES,
-  deleteUpload,
-  saveUploads,
+  deleteStoredImages,
+  uploadImages,
+  type StoredImage,
 } from "@/lib/uploads";
 import {
   createSession,
@@ -62,6 +65,28 @@ function slugify(name: string): string {
     .slice(0, 80) || "piece";
 }
 
+function parseKeptImages(formData: FormData): ProductImageAsset[] {
+  return formData.getAll("kept").flatMap((value): ProductImageAsset[] => {
+    if (typeof value !== "string") return [];
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        "url" in parsed &&
+        typeof parsed.url === "string" &&
+        "key" in parsed &&
+        (typeof parsed.key === "string" || parsed.key === null)
+      ) {
+        return [{ url: parsed.url, key: parsed.key }];
+      }
+    } catch {
+      return [];
+    }
+    return [];
+  });
+}
+
 export async function saveProduct(
   _prev: ProductFormState,
   formData: FormData,
@@ -77,6 +102,9 @@ export async function saveProduct(
   const stock = Number(formData.get("stock"));
   const featured = formData.get("featured") === "on";
 
+  if (idRaw && (!Number.isInteger(id) || (id ?? 0) <= 0)) {
+    return { error: "Invalid product ID." };
+  }
   if (name.length < 3) return { error: "Name must be at least 3 characters." };
   if (!Number.isFinite(price) || price < 1 || price > 1_000_000) {
     return { error: "Enter a valid price in rupees." };
@@ -85,86 +113,98 @@ export async function saveProduct(
     return { error: "Enter a valid stock quantity." };
   }
 
+  let uploaded: StoredImage[] = [];
+  let removedKeys: string[] = [];
   try {
+    const admin = getInsforgeAdmin();
+    const existing = id
+      ? await admin.database
+          .from("products")
+          .select("id, slug, images")
+          .eq("id", id)
+          .maybeSingle()
+      : null;
+    if (existing && "error" in existing) throwInsforgeError(existing.error);
+    if (id && !existing?.data) return { error: "Product not found." };
+
+    const oldAssets = existing?.data
+      ? parseProductImages(existing.data.images)
+      : [];
+    const requestedKept = parseKeptImages(formData);
+    const kept = requestedKept.flatMap((requested) => {
+      const original = oldAssets.find((asset) => asset.url === requested.url);
+      return original ? [original] : [];
+    });
+
     const newImages = formData.getAll("newImages");
-    const uploads = await saveUploads(
-      newImages.filter((f): f is File => f instanceof File),
-    );
-
-    const kept = formData
-      .getAll("kept")
-      .map((v) => String(v))
-      .filter((v) => v.startsWith("/"));
-    const removed = formData
-      .getAll("removed")
-      .map((v) => String(v))
-      .filter((v) => v.startsWith("/media/") || v.startsWith("/uploads/"));
-
-    const images = [...kept, ...uploads];
-
-    const db = getDb();
-
-    if (id) {
-      const existing = db
-        .prepare("SELECT id, slug, images FROM products WHERE id = ?")
-        .get(id) as { id: number; slug: string; images: string } | undefined;
-      if (!existing) return { error: "Product not found." };
-
-      const slug = existing.slug;
-      db.prepare(
-        `UPDATE products
-         SET name = ?, slug = ?, description = ?, price = ?, category = ?,
-             images = ?, stock = ?, featured = ?
-         WHERE id = ?`,
-      ).run(
-        name,
-        slug,
-        description,
-        Math.round(price),
-        category,
-        JSON.stringify(images),
-        stock,
-        featured ? 1 : 0,
-        id,
-      );
-
-      for (const p of removed) await deleteUpload(p);
-    } else {
-      let slug = slugify(name);
-      const slugExists = db.prepare(
-        "SELECT 1 FROM products WHERE slug = ?",
-      );
+    const newFiles = newImages.filter((file): file is File => file instanceof File);
+    const uploadedImages = await uploadImages(newFiles, "products");
+    uploaded = uploadedImages;
+    const images = [...kept, ...uploadedImages];
+    let slug = existing?.data?.slug;
+    if (!slug) {
+      const base = slugify(name);
+      let candidate = base;
       let suffix = 2;
-      let candidate = slug;
-      while (slugExists.get(candidate)) {
-        candidate = `${slug}-${suffix++}`;
+      for (;;) {
+        const { data, error } = await admin.database
+          .from("products")
+          .select("id")
+          .eq("slug", candidate)
+          .maybeSingle();
+        throwInsforgeError(error);
+        if (!data) break;
+        candidate = `${base}-${suffix++}`;
       }
       slug = candidate;
-
-      db.prepare(
-        `INSERT INTO products (slug, name, description, price, category, images, stock, featured)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        slug,
-        name,
-        description,
-        Math.round(price),
-        category,
-        JSON.stringify(images),
-        stock,
-        featured ? 1 : 0,
-      );
-
-      for (const p of removed) await deleteUpload(p);
     }
+
+    const values = {
+      slug,
+      name,
+      description,
+      price: Math.round(price),
+      category,
+      images,
+      stock,
+      featured,
+    };
+    const result = id
+      ? await admin.database.from("products").update(values).eq("id", id)
+      : await admin.database.from("products").insert([values]);
+    throwInsforgeError(result.error);
+
+    removedKeys = oldAssets.flatMap((asset) =>
+      asset.key && !kept.some((item) => item.key === asset.key)
+        ? [asset.key]
+        : [],
+    );
   } catch (err) {
+    if (uploaded.length) {
+      try {
+        await deleteStoredImages(uploaded.map((image) => image.key));
+      } catch (cleanupError) {
+        console.error("Could not remove incomplete product image uploads.", cleanupError);
+      }
+    }
     return {
       error: err instanceof Error ? err.message : "Could not save the product.",
     };
   }
 
-  // Redirect lives outside the try/catch so NEXT_REDIRECT is never swallowed.
   updateTag("products");
+  if (removedKeys.length) {
+    try {
+      await deleteStoredImages(removedKeys);
+    } catch (error) {
+      console.error("Product saved, but old product images could not be removed.", error);
+      return {
+        error: "Product saved, but one or more old photos could not be removed.",
+      };
+    }
+  }
+
+  // Redirect lives outside the try/catch so NEXT_REDIRECT is never swallowed.
   redirect("/admin/products");
 }
 
@@ -178,18 +218,23 @@ type AppearanceImageKey =
   | "homeBackgroundImage"
   | "siteBackgroundImage";
 
+function setAppearanceImage(
+  appearance: SiteAppearance,
+  key: AppearanceImageKey,
+  image: AppearanceImage | null,
+): void {
+  if (key === "heroImage") {
+    appearance.heroImage = image ?? DEFAULT_SITE_APPEARANCE.heroImage;
+  } else {
+    appearance[key] = image;
+  }
+}
+
 const APPEARANCE_IMAGE_FIELDS = [
   ["heroImage", "heroImage", "removeHeroImage"],
   ["homeBackgroundImage", "homeBackgroundImage", "removeHomeBackgroundImage"],
   ["siteBackgroundImage", "siteBackgroundImage", "removeSiteBackgroundImage"],
 ] as const satisfies readonly [AppearanceImageKey, string, string][];
-
-const APPEARANCE_SETTING_FIELDS = [
-  ["heroImage", "appearance.heroImage"],
-  ["homeBackgroundImage", "appearance.homeBackgroundImage"],
-  ["siteBackgroundImage", "appearance.siteBackgroundImage"],
-  ["siteBackgroundColor", "appearance.siteBackgroundColor"],
-] as const satisfies readonly [keyof SiteAppearance, string][];
 
 export async function saveAppearance(
   _prev: AppearanceFormState,
@@ -202,7 +247,7 @@ export async function saveAppearance(
     return { error: "Choose a valid background color." };
   }
 
-  const appearance = readSiteAppearance();
+  const appearance = await readSiteAppearance();
   const next: SiteAppearance = { ...appearance, siteBackgroundColor: color };
   const uploaded: string[] = [];
   const imageFiles = new Map<AppearanceImageKey, File>();
@@ -219,31 +264,47 @@ export async function saveAppearance(
     for (const [key, , removeField] of APPEARANCE_IMAGE_FIELDS) {
       const file = imageFiles.get(key);
       if (file) {
-        const [url] = await saveUploads([file], APPEARANCE_IMAGE_TYPES);
-        if (url) {
-          next[key] = url;
-          uploaded.push(url);
+        const [image] = await uploadImages([file], "appearance");
+        if (image) {
+          setAppearanceImage(next, key, image);
+          uploaded.push(image.key);
         }
       } else if (formData.get(removeField) === "on") {
-        next[key] =
-          key === "heroImage" ? DEFAULT_SITE_APPEARANCE.heroImage : "";
+        setAppearanceImage(next, key, null);
       }
     }
 
-    const db = getDb();
-    const upsert = db.prepare(
-      `INSERT INTO site_settings (key, value) VALUES (?, ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    const settings = [
+      {
+        key: "appearance.heroImage",
+        value: next.heroImage.url,
+        asset_key: next.heroImage.key,
+      },
+      {
+        key: "appearance.homeBackgroundImage",
+        value: next.homeBackgroundImage?.url ?? "",
+        asset_key: next.homeBackgroundImage?.key ?? null,
+      },
+      {
+        key: "appearance.siteBackgroundImage",
+        value: next.siteBackgroundImage?.url ?? "",
+        asset_key: next.siteBackgroundImage?.key ?? null,
+      },
+      {
+        key: "appearance.siteBackgroundColor",
+        value: next.siteBackgroundColor,
+        asset_key: null,
+      },
+    ];
+    const { error } = await getInsforgeAdmin().database.rpc(
+      "save_site_appearance",
+      { p_settings: settings },
     );
-    db.transaction(() => {
-      for (const [key, settingKey] of APPEARANCE_SETTING_FIELDS) {
-        upsert.run(settingKey, next[key]);
-      }
-    })();
+    throwInsforgeError(error);
   } catch (error) {
-    for (const url of uploaded) {
+    if (uploaded.length) {
       try {
-        await deleteUpload(url);
+        await deleteStoredImages(uploaded);
       } catch (cleanupError) {
         console.error("Could not remove an incomplete appearance upload.", cleanupError);
       }
@@ -256,17 +317,22 @@ export async function saveAppearance(
     };
   }
 
+  updateTag("appearance");
   for (const [key] of APPEARANCE_IMAGE_FIELDS) {
-    if (appearance[key] !== next[key]) {
+    const previous = appearance[key];
+    const current = next[key];
+    if (previous?.key && previous.key !== current?.key) {
       try {
-        await deleteUpload(appearance[key]);
+        await deleteStoredImages([previous.key]);
       } catch (error) {
-        console.error(`Could not remove the previous ${key} upload.`, error);
+        console.error(`Appearance saved, but old ${key} could not be removed.`, error);
+        return {
+          error: "Appearance saved, but an old photo could not be removed.",
+        };
       }
     }
   }
 
-  updateTag("appearance");
   return { ok: true };
 }
 
@@ -274,26 +340,27 @@ export async function deleteProduct(formData: FormData): Promise<void> {
   await requireAdminAction();
 
   const id = Number(formData.get("id"));
-  if (!Number.isInteger(id) || id <= 0) return;
+  if (!Number.isInteger(id) || id <= 0) throw new Error("Invalid product ID.");
 
-  const db = getDb();
-  const row = db
-    .prepare("SELECT images FROM products WHERE id = ?")
-    .get(id) as { images: string } | undefined;
+  const admin = getInsforgeAdmin();
+  const { data, error } = await admin.database
+    .from("products")
+    .select("images")
+    .eq("id", id)
+    .maybeSingle();
+  throwInsforgeError(error);
+  if (!data) return;
 
-  if (row) {
-    db.prepare("DELETE FROM products WHERE id = ?").run(id);
-    try {
-      const images: unknown = JSON.parse(row.images);
-      if (Array.isArray(images)) {
-        for (const img of images) await deleteUpload(String(img));
-      }
-    } catch (error) {
-      console.error("Could not remove product image uploads.", error);
-    }
-  }
-
+  const { error: deleteError } = await admin.database
+    .from("products")
+    .delete()
+    .eq("id", id);
+  throwInsforgeError(deleteError);
   updateTag("products");
+  const keys = parseProductImages(data.images)
+    .map((image) => image.key)
+    .filter((key): key is string => key !== null);
+  await deleteStoredImages(keys);
 }
 
 /* ------------------------------------------------------------------ */
@@ -310,12 +377,14 @@ export async function updateOrderStatus(formData: FormData): Promise<void> {
     !Number.isInteger(id) ||
     !ORDER_STATUSES.includes(status as OrderStatus)
   ) {
-    return;
+    throw new Error("Invalid order status update.");
   }
 
-  getDb()
-    .prepare("UPDATE orders SET status = ? WHERE id = ?")
-    .run(status, id);
+  const { error } = await getInsforgeAdmin()
+    .database.from("orders")
+    .update({ status })
+    .eq("id", id);
+  throwInsforgeError(error);
 
   refresh();
 }

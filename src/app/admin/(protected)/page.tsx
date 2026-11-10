@@ -3,8 +3,8 @@ import { getDashboardStats } from "@/lib/admin-data";
 import { formatDbDate, formatDbDay, formatINR } from "@/lib/format";
 import { StatusPill } from "@/components/admin/status-pill";
 
-export default function AdminDashboard() {
-  const stats = getDashboardStats();
+export default async function AdminDashboard() {
+  const stats = await getDashboardStats();
   const maxDay = Math.max(1, ...stats.salesByDay.map((d) => d.total));
 
   const cards = [

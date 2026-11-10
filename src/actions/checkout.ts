@@ -1,7 +1,7 @@
 "use server";
 
 import { updateTag } from "next/cache";
-import { createOrderFromCart } from "@/lib/orders";
+import { createStoreOrder } from "@/lib/store-orders";
 import { businessLink } from "@/lib/whatsapp";
 
 export type CheckoutState = {
@@ -33,7 +33,7 @@ export async function placeOrder(
   }
 
   try {
-    const created = createOrderFromCart({
+    const created = await createStoreOrder({
       name,
       phone,
       address,

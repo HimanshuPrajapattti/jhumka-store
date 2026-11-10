@@ -16,9 +16,9 @@ export default async function SiteLayout({
         className="flex min-h-screen flex-col"
         style={{
           backgroundColor: appearance.siteBackgroundColor,
-          ...(appearance.siteBackgroundImage
+          ...(appearance.siteBackgroundImage?.url
             ? {
-                backgroundImage: `url("${appearance.siteBackgroundImage}")`,
+                backgroundImage: `url("${appearance.siteBackgroundImage.url}")`,
                 backgroundPosition: "center",
                 backgroundSize: "cover",
                 backgroundAttachment: "fixed",

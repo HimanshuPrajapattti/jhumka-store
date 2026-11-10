@@ -36,7 +36,7 @@ async function ThankYou({
 }) {
   const sp = await searchParamsPromise;
   const ref = typeof sp.ref === "string" ? sp.ref : "";
-  const order = ref ? getOrderByRef(ref) : null;
+  const order = ref ? await getOrderByRef(ref) : null;
 
   if (!order) {
     return (

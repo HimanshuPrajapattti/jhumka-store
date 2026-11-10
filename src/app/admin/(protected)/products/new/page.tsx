@@ -1,8 +1,8 @@
 import { getAdminProducts } from "@/lib/admin-data";
 import { ProductForm } from "@/components/admin/product-form";
 
-export default function NewProductPage() {
-  const products = getAdminProducts();
+export default async function NewProductPage() {
+  const products = await getAdminProducts();
   const categories = [...new Set(products.map((p) => p.category))].sort();
 
   return (

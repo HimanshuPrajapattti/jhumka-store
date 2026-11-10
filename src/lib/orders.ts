@@ -1,6 +1,15 @@
 import crypto from "node:crypto";
 import { getDb } from "./db";
 import { buildOrderMessage } from "./whatsapp";
+import {
+  normalizePhone,
+  validateCheckoutInput,
+  type CheckoutInput,
+  type CreatedOrder,
+} from "./checkout-input";
+
+export { normalizePhone };
+export type { CheckoutInput, CheckoutLine, CreatedOrder } from "./checkout-input";
 
 /**
  * Domain logic for creating an order. Framework-free on purpose so it can be
@@ -10,59 +19,13 @@ import { buildOrderMessage } from "./whatsapp";
  * the client.
  */
 
-export type CheckoutLine = { id: number; qty: number };
-
-export type CheckoutInput = {
-  name: string;
-  phone: string;
-  address: string;
-  note?: string;
-  items: CheckoutLine[];
-};
-
-export type CreatedOrder = {
-  ref: string;
-  message: string;
-  total: number;
-};
-
 function makeRef(): string {
   return `AVR-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
-export function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 10) return `91${digits}`;
-  if (digits.startsWith("0") && digits.length === 12) return `91${digits.slice(1)}`;
-  return digits;
-}
-
 /** Throws Error with a customer-friendly message when the order is invalid. */
 export function createOrderFromCart(input: CheckoutInput): CreatedOrder {
-  const name = input.name.trim();
-  if (name.length < 2) throw new Error("Please enter your full name.");
-
-  const phone = normalizePhone(input.phone);
-  if (phone.length < 10 || phone.length > 15 || !/^\d+$/.test(phone)) {
-    throw new Error("Please enter a valid 10-digit mobile number.");
-  }
-
-  const address = input.address.trim();
-  if (address.length < 10) {
-    throw new Error("Please enter your full delivery address.");
-  }
-
-  const items = (input.items ?? []).filter(
-    (i) =>
-      Number.isInteger(i.id) &&
-      i.id > 0 &&
-      Number.isInteger(i.qty) &&
-      i.qty > 0 &&
-      i.qty <= 20,
-  );
-  if (items.length === 0) {
-    throw new Error("Your cart looks empty. Please add some pieces first.");
-  }
+  const { name, phone, address, note, items } = validateCheckoutInput(input);
 
   const db = getDb();
 
@@ -99,7 +62,7 @@ export function createOrderFromCart(input: CheckoutInput): CreatedOrder {
       db.prepare(
         `INSERT INTO orders (ref, customer_name, phone, address, note, subtotal, total, status, message)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', '')`,
-      ).run(ref, name, phone, address, input.note?.trim() ?? "", total, total);
+      ).run(ref, name, phone, address,       note, total, total);
 
       const order = db.prepare("SELECT id FROM orders WHERE ref = ?").get(ref) as {
         id: number;
@@ -123,7 +86,7 @@ export function createOrderFromCart(input: CheckoutInput): CreatedOrder {
         customerName: name,
         phone,
         address,
-        note: input.note ?? "",
+        note,
         items: lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty })),
         total,
       });

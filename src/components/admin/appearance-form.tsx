@@ -74,16 +74,16 @@ export function AppearanceForm({
             const currentImage = appearance[field.name];
             const canRemove =
               field.name !== "heroImage" ||
-              currentImage !== DEFAULT_SITE_APPEARANCE.heroImage;
+              currentImage?.url !== DEFAULT_SITE_APPEARANCE.heroImage.url;
             return (
               <div
                 key={field.name}
                 className="grid gap-4 border-t border-sand pt-6 sm:grid-cols-[112px_1fr]"
               >
                 <div className="relative h-28 w-28 overflow-hidden rounded-xl border border-sand bg-cream">
-                  {currentImage ? (
+                  {currentImage?.url ? (
                     <Image
-                      src={currentImage}
+                      src={currentImage.url}
                       alt={field.label}
                       fill
                       sizes="112px"

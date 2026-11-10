@@ -1,7 +1,10 @@
+import "server-only";
+
 import { cacheLife, cacheTag } from "next/cache";
-import { getDb } from "./db";
+import { getInsforgeAdmin, throwInsforgeError } from "./insforge-admin";
 import {
   DEFAULT_SITE_APPEARANCE,
+  type AppearanceImage,
   type SiteAppearance,
 } from "./appearance-defaults";
 
@@ -15,32 +18,47 @@ const SETTING_KEYS = {
   siteBackgroundColor: "appearance.siteBackgroundColor",
 } as const;
 
-export function readSiteAppearance(): SiteAppearance {
-  const rows = getDb()
-    .prepare("SELECT key, value FROM site_settings WHERE key LIKE 'appearance.%'")
-    .all() as { key: string; value: string }[];
-  const values = new Map(rows.map((row) => [row.key, row.value]));
-  const imagePath = (value: string | undefined, fallback: string) =>
-    value && /^\/media\/[a-z0-9-]+\.(?:jpg|png|webp|avif)$/i.test(value)
-      ? value
-      : fallback;
-  const color = values.get(SETTING_KEYS.siteBackgroundColor);
+export async function readSiteAppearance(): Promise<SiteAppearance> {
+  const { data, error } = await getInsforgeAdmin()
+    .database.from("site_settings")
+    .select("key, value, asset_key")
+    .in("key", Object.values(SETTING_KEYS));
+  throwInsforgeError(error);
+  const values = new Map(
+    (data ?? []).map((row) => [row.key as string, row]),
+  );
+  const image = (key: string, fallback: AppearanceImage | null) => {
+    const row = values.get(key);
+    if (!row || typeof row.value !== "string") return fallback;
+    if (
+      !row.value.startsWith("/") &&
+      (!process.env.INSFORGE_URL ||
+        !row.value.startsWith(`${process.env.INSFORGE_URL}/`))
+    ) {
+      return fallback;
+    }
+    return {
+      url: row.value,
+      key: typeof row.asset_key === "string" ? row.asset_key : null,
+    };
+  };
+  const color = values.get(SETTING_KEYS.siteBackgroundColor)?.value;
 
   return {
-    heroImage: imagePath(
-      values.get(SETTING_KEYS.heroImage),
+    heroImage: image(
+      SETTING_KEYS.heroImage,
       DEFAULT_SITE_APPEARANCE.heroImage,
+    ) ?? DEFAULT_SITE_APPEARANCE.heroImage,
+    homeBackgroundImage: image(
+      SETTING_KEYS.homeBackgroundImage,
+      null,
     ),
-    homeBackgroundImage: imagePath(
-      values.get(SETTING_KEYS.homeBackgroundImage),
-      "",
-    ),
-    siteBackgroundImage: imagePath(
-      values.get(SETTING_KEYS.siteBackgroundImage),
-      "",
+    siteBackgroundImage: image(
+      SETTING_KEYS.siteBackgroundImage,
+      null,
     ),
     siteBackgroundColor:
-      color && /^#[\da-f]{6}$/i.test(color)
+      typeof color === "string" && /^#[\da-f]{6}$/i.test(color)
         ? color
         : DEFAULT_SITE_APPEARANCE.siteBackgroundColor,
   };

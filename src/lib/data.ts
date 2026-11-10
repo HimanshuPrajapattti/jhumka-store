@@ -1,5 +1,8 @@
+import "server-only";
+
 import { cacheLife, cacheTag } from "next/cache";
-import { getDb, parseImages, type ProductRow } from "./db";
+import { getInsforgeAdmin, throwInsforgeError } from "./insforge-admin";
+import { parseProductImages } from "./product-images";
 
 export type Product = {
   id: number;
@@ -9,11 +12,26 @@ export type Product = {
   price: number;
   category: string;
   images: string[];
+  imageKeys: (string | null)[];
   stock: number;
   featured: boolean;
 };
 
-function toProduct(row: ProductRow): Product {
+export type ProductRecord = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  images: unknown;
+  stock: number;
+  featured: boolean;
+  created_at: string;
+};
+
+export function toProduct(row: ProductRecord): Product {
+  const assets = parseProductImages(row.images);
   return {
     id: row.id,
     slug: row.slug,
@@ -21,9 +39,10 @@ function toProduct(row: ProductRow): Product {
     description: row.description,
     price: row.price,
     category: row.category,
-    images: parseImages(row.images),
+    images: assets.map((asset) => asset.url),
+    imageKeys: assets.map((asset) => asset.key),
     stock: row.stock,
-    featured: row.featured === 1,
+    featured: row.featured,
   };
 }
 
@@ -37,9 +56,14 @@ export async function getFeaturedProducts(): Promise<Product[]> {
   cacheLife("hours");
   cacheTag("products");
 
-  const rows = getDb()
-    .prepare("SELECT * FROM products WHERE featured = 1 ORDER BY id DESC")
-    .all() as ProductRow[];
+  const { data, error } = await getInsforgeAdmin()
+    .database.from("products")
+    .select("id, slug, name, description, price, category, images, stock, featured, created_at")
+    .eq("featured", true)
+    .order("id", { ascending: false })
+    .limit(100);
+  throwInsforgeError(error);
+  const rows = (data ?? []) as ProductRecord[];
   return rows.map(toProduct);
 }
 
@@ -51,22 +75,22 @@ export async function getShopProducts(
   cacheLife("hours");
   cacheTag("products");
 
-  const db = getDb();
-  let sql = "SELECT * FROM products WHERE 1=1";
-  const params: (string | number)[] = [];
-
-  if (category) {
-    sql += " AND category = ?";
-    params.push(category);
-  }
+  let query = getInsforgeAdmin()
+    .database.from("products")
+    .select("id, slug, name, description, price, category, images, stock, featured, created_at");
+  if (category) query = query.eq("category", category);
   if (q) {
-    sql += " AND (name LIKE ? OR description LIKE ? OR category LIKE ?)";
-    const like = `%${q}%`;
-    params.push(like, like, like);
+    const escaped = q.replace(/[(),]/g, " ");
+    query = query.or(
+      `name.ilike.%${escaped}%,description.ilike.%${escaped}%,category.ilike.%${escaped}%`,
+    );
   }
-  sql += " ORDER BY featured DESC, id DESC";
-
-  const rows = db.prepare(sql).all(...params) as ProductRow[];
+  const { data, error } = await query
+    .order("featured", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(200);
+  throwInsforgeError(error);
+  const rows = (data ?? []) as ProductRecord[];
   return rows.map(toProduct);
 }
 
@@ -75,9 +99,13 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
   cacheLife("hours");
   cacheTag("products");
 
-  const row = getDb()
-    .prepare("SELECT * FROM products WHERE slug = ?")
-    .get(slug) as ProductRow | undefined;
+  const { data, error } = await getInsforgeAdmin()
+    .database.from("products")
+    .select("id, slug, name, description, price, category, images, stock, featured, created_at")
+    .eq("slug", slug)
+    .maybeSingle();
+  throwInsforgeError(error);
+  const row = data as ProductRecord | null;
   return row ? toProduct(row) : null;
 }
 
@@ -86,10 +114,13 @@ export async function getCategories(): Promise<string[]> {
   cacheLife("hours");
   cacheTag("products");
 
-  const rows = getDb()
-    .prepare("SELECT DISTINCT category FROM products ORDER BY category")
-    .all() as { category: string }[];
-  return rows.map((r) => r.category);
+  const { data, error } = await getInsforgeAdmin()
+    .database.from("products")
+    .select("category")
+    .order("category")
+    .limit(200);
+  throwInsforgeError(error);
+  return [...new Set((data ?? []).map((row) => row.category as string))];
 }
 
 export async function getAllSlugs(): Promise<string[]> {
@@ -97,8 +128,11 @@ export async function getAllSlugs(): Promise<string[]> {
   cacheLife("hours");
   cacheTag("products");
 
-  const rows = getDb()
-    .prepare("SELECT slug FROM products")
-    .all() as { slug: string }[];
-  return rows.map((r) => r.slug);
+  const { data, error } = await getInsforgeAdmin()
+    .database.from("products")
+    .select("slug")
+    .order("slug")
+    .limit(1000);
+  throwInsforgeError(error);
+  return (data ?? []).map((row) => row.slug as string);
 }

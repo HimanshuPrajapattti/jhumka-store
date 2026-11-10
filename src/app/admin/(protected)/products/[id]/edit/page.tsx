@@ -8,13 +8,13 @@ export default async function EditProductPage(
   const { id } = await props.params;
   const productId = Number(id);
   const product = Number.isInteger(productId)
-    ? getAdminProduct(productId)
+    ? await getAdminProduct(productId)
     : null;
 
   if (!product) notFound();
 
   const categories = [
-    ...new Set(getAdminProducts().map((p) => p.category)),
+    ...new Set((await getAdminProducts()).map((p) => p.category)),
   ].sort();
 
   return (

@@ -21,7 +21,9 @@ export function ProductForm({
   const [newPreviews, setNewPreviews] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const existing = (product?.images ?? []).filter((img) => !removed.includes(img));
+  const existing = (product?.images ?? [])
+    .map((url, index) => ({ url, key: product?.imageKeys[index] ?? null }))
+    .filter((image) => !removed.includes(image.url));
 
   function handleFiles(files: FileList | null) {
     setNewPreviews((prev) => {
@@ -54,8 +56,13 @@ export function ProductForm({
       )}
 
       {product && <input type="hidden" name="id" value={product.id} />}
-      {existing.map((img) => (
-        <input key={img} type="hidden" name="kept" value={img} />
+      {existing.map((image) => (
+        <input
+          key={image.url}
+          type="hidden"
+          name="kept"
+          value={JSON.stringify(image)}
+        />
       ))}
       {removed.map((img) => (
         <input key={img} type="hidden" name="removed" value={img} />
@@ -162,13 +169,13 @@ export function ProductForm({
             <div className="mb-5">
               <p className="mb-2 text-xs text-ash">Current</p>
               <div className="grid grid-cols-3 gap-3">
-                {existing.map((img) => (
+                {existing.map((image) => (
                   <div
-                    key={img}
+                    key={image.url}
                     className="group relative aspect-square overflow-hidden rounded-lg border border-sand bg-cream"
                   >
                     <Image
-                      src={img}
+                      src={image.url}
                       alt=""
                       fill
                       sizes="120px"
@@ -176,7 +183,9 @@ export function ProductForm({
                     />
                     <button
                       type="button"
-                      onClick={() => setRemoved((prev) => [...prev, img])}
+                      onClick={() =>
+                        setRemoved((prev) => [...prev, image.url])
+                      }
                       className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-maroon/90 text-ivory opacity-0 transition group-hover:opacity-100"
                       aria-label="Remove photo"
                     >

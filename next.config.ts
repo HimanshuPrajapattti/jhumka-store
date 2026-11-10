@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
     // Seed artwork ships as SVG; admin uploads are jpg/png/webp.
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "a8curzae.us-east.insforge.app",
+        pathname: "/**",
+      },
+    ],
     localPatterns: [
       { pathname: "/products/**" },
       { pathname: "/uploads/**" },

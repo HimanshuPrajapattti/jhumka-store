@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getAdminOrders } from "@/lib/admin-data";
-import { ORDER_STATUSES } from "@/lib/db";
+import { ORDER_STATUSES } from "@/lib/order-statuses";
 import { formatDbDate, formatINR } from "@/lib/format";
 import { StatusPill } from "@/components/admin/status-pill";
 
@@ -21,7 +21,7 @@ export default async function AdminOrdersPage(
     ? raw
     : "";
 
-  const all = getAdminOrders();
+  const all = await getAdminOrders();
   const counts = new Map<string, number>();
   for (const order of all) {
     counts.set(order.status, (counts.get(order.status) ?? 0) + 1);

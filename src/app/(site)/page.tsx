@@ -24,9 +24,9 @@ export default async function HomePage() {
       <section
         className="relative overflow-hidden bg-gradient-to-b from-cream via-ivory to-ivory"
         style={
-          appearance.homeBackgroundImage
+          appearance.homeBackgroundImage?.url
             ? {
-                backgroundImage: `linear-gradient(to bottom, rgb(244 236 223 / 88%), rgb(251 247 241 / 88%)), url("${appearance.homeBackgroundImage}")`,
+                backgroundImage: `linear-gradient(to bottom, rgb(244 236 223 / 88%), rgb(251 247 241 / 88%)), url("${appearance.homeBackgroundImage.url}")`,
                 backgroundPosition: "center",
                 backgroundSize: "cover",
               }
@@ -77,7 +77,7 @@ export default async function HomePage() {
           <div className="relative mx-auto w-full max-w-md animate-rise">
             <div className="relative aspect-square overflow-hidden rounded-full border border-gold/40 bg-maroon-deep shadow-[0_40px_80px_-40px_rgba(75,15,31,0.7)]">
               <Image
-                src={appearance.heroImage}
+                src={appearance.heroImage.url}
                 alt="Handcrafted gold jhumka from AVRANI"
                 fill
                 priority

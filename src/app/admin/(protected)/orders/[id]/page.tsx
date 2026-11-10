@@ -16,7 +16,7 @@ export default async function AdminOrderDetailPage(
 ) {
   const { id } = await props.params;
   const orderId = Number(id);
-  const order = Number.isInteger(orderId) ? getAdminOrder(orderId) : null;
+  const order = Number.isInteger(orderId) ? await getAdminOrder(orderId) : null;
 
   if (!order) notFound();
 

@@ -5,8 +5,8 @@ import { getAdminProducts } from "@/lib/admin-data";
 import { formatINR } from "@/lib/format";
 import { DeleteProductButton } from "@/components/admin/delete-product-button";
 
-export default function AdminProductsPage() {
-  const products = getAdminProducts();
+export default async function AdminProductsPage() {
+  const products = await getAdminProducts();
 
   return (
     <div className="space-y-8">

@@ -46,3 +46,18 @@ next-env.d.ts
 
 # admin-uploaded product photos
 /public/uploads/
+
+# InsForge & AI agent skills
+.insforge
+.agent
+.agents
+.augment
+.claude
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf
