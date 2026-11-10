@@ -9,7 +9,7 @@ import {
 import {
   DEFAULT_SITE_APPEARANCE,
   type SiteAppearance,
-} from "@/lib/appearance";
+} from "@/lib/appearance-defaults";
 
 const IMAGE_FIELDS = [
   {

@@ -1,19 +1,12 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { getDb } from "./db";
+import {
+  DEFAULT_SITE_APPEARANCE,
+  type SiteAppearance,
+} from "./appearance-defaults";
 
-export type SiteAppearance = {
-  heroImage: string;
-  homeBackgroundImage: string;
-  siteBackgroundImage: string;
-  siteBackgroundColor: string;
-};
-
-export const DEFAULT_SITE_APPEARANCE: SiteAppearance = {
-  heroImage: "/products/jhumka-gold.svg",
-  homeBackgroundImage: "",
-  siteBackgroundImage: "",
-  siteBackgroundColor: "#fbf7f1",
-};
+export { DEFAULT_SITE_APPEARANCE };
+export type { SiteAppearance };
 
 const SETTING_KEYS = {
   heroImage: "appearance.heroImage",
