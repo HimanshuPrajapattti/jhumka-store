@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Illustrated jhumka earring">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdf1ee"/>
+      <stop offset="1" stop-color="#f3d8d4"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#571324"/>
+      <stop offset="0.45" stop-color="#a8455a"/>
+      <stop offset="1" stop-color="#3d0c18"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.55">
+      <stop offset="0" stop-color="#d98fa0" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#d98fa0" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="46" height="46" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="2.2" fill="#a8455a" opacity="0.35"/>
+    </pattern>
+  </defs>
+
+  <rect width="800" height="1000" fill="url(#bg)"/>
+  <rect width="800" height="1000" fill="url(#dots)"/>
+  <circle cx="400" cy="440" r="310" fill="url(#glow)"/>
+
+  <!-- arch frame -->
+  <path d="M168 905 V430 A232 232 0 0 1 632 430 V905" fill="none" stroke="#a8455a" stroke-width="2.5" opacity="0.55"/>
+
+  <!-- earring -->
+  <g>
+    <!-- ear hook -->
+    <path d="M400 168 a30 30 0 1 1 -0.2 0" fill="none" stroke="url(#metal)" stroke-width="9"/>
+    <line x1="400" y1="226" x2="400" y2="258" stroke="url(#metal)" stroke-width="7" stroke-linecap="round"/>
+
+    <!-- stud -->
+    <circle cx="400" cy="286" r="26" fill="url(#metal)"/>
+    <circle cx="400" cy="286" r="10" fill="#fdf1ee"/>
+
+    <!-- dome -->
+    <path d="M400 314 C 320 314 264 390 264 468 C 264 498 270 518 276 534 L 524 534 C 530 518 536 498 536 468 C 536 390 480 314 400 314 Z" fill="url(#metal)"/>
+    <path d="M318 470 Q400 424 482 470" fill="none" stroke="#fdf1ee" stroke-width="5" opacity="0.55"/>
+    <path d="M334 506 Q400 470 466 506" fill="none" stroke="#fdf1ee" stroke-width="4" opacity="0.4"/>
+    <circle cx="400" cy="398" r="14" fill="#fdf1ee" opacity="0.85"/>
+
+    <!-- rim -->
+    <ellipse cx="400" cy="540" rx="134" ry="16" fill="#571324"/>
+    <ellipse cx="400" cy="536" rx="134" ry="14" fill="url(#metal)"/>
+
+    <line x1="288" y1="552" x2="288" y2="584" stroke="url(#metal)" stroke-width="4" stroke-linecap="round"/><circle cx="288" cy="592" r="7" fill="url(#metal)"/><line x1="316" y1="552" x2="316" y2="598" stroke="url(#metal)" stroke-width="4" stroke-linecap="round"/><circle cx="316" cy="606" r="9" fill="url(#metal)"/><line x1="344" y1="552" x2="344" y2="612" stroke="url(#metal)" stroke-width="4" stroke-linecap="round"/><circle cx="344" cy="620" r="9" fill="url(#metal)"/><line x1="372" y1="552" x2="372" y2="626" stroke="url(#metal)" stroke-width="4" stroke-linecap="round"/><circle cx="372" cy="634" r="9" fill="url(#metal)"/><line x1="400" y1="552" x2="400" y2="640" stroke="url(#metal)" stroke-width="4" stroke-linecap="round"/><path d="M400 664 Q411 650 400 634 Q389 650 400 664 Z" fill="url(#metal)"/><line x1="428" y1="552" x2="428" y2="626" stroke="url(#metal)" stroke-width="4" stroke-linecap="round"/><circle cx="428" cy="634" r="9" fill="url(#metal)"/><line x1="456" y1="552" x2="456" y2="612" stroke="url(#metal)" stroke-width="4" stroke-linecap="round"/><circle cx="456" cy="620" r="9" fill="url(#metal)"/><line x1="484" y1="552" x2="484" y2="598" stroke="url(#metal)" stroke-width="4" stroke-linecap="round"/><circle cx="484" cy="606" r="9" fill="url(#metal)"/><line x1="512" y1="552" x2="512" y2="584" stroke="url(#metal)" stroke-width="4" stroke-linecap="round"/><circle cx="512" cy="592" r="7" fill="url(#metal)"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="400" y="868" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="56" letter-spacing="30" fill="#4b0f1f">AVRANI</text>
+  <text x="400" y="906" text-anchor="middle" font-family="Georgia, serif" font-size="17" letter-spacing="9" fill="#96505f">HANDCRAFTED JHUMKA</text>
+</svg>
